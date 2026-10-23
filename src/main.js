@@ -18,6 +18,7 @@ let textures = [];
 let videoBox = null;
 let soundOn = false;
 let lockedIndex = -1;
+let lockLayer = null;
 let toastTimer = null;
 
 // ---------- UI helpers ----------
@@ -128,6 +129,56 @@ function playVideo(i) {
   }
 }
 
+async function unlockVideo({ exitFullscreen = true } = {}) {
+  if (lockedIndex < 0) return;
+  const i = lockedIndex;
+  lockedIndex = -1;
+  const v = videos[i];
+  const anchor = ar && ar.anchors[i];
+
+  if (exitFullscreen && document.fullscreenElement && document.exitFullscreen) {
+    try { await document.exitFullscreen(); } catch { /* the overlay is restored below */ }
+  }
+  if (lockLayer) {
+    lockLayer.remove();
+    lockLayer = null;
+  }
+  if (videoBox && v && v.parentElement !== videoBox) videoBox.append(v);
+  lockBtn.textContent = '🔒 Lock video';
+  if (anchor && anchor.visible) {
+    anchor.group.attach(meshes[i]);
+    meshes[i].visible = true;
+    lockBtn.hidden = false;
+    playVideo(i);
+  } else {
+    v.pause();
+    meshes[i].visible = false;
+    lockBtn.hidden = true;
+    toast('Video unlocked. Scan the image to play it again.');
+  }
+}
+
+async function lockVideo(i) {
+  if (lockedIndex >= 0 || !videos[i]) return;
+  lockedIndex = i;
+  const v = videos[i];
+  const mesh = meshes[i];
+  mesh.visible = false;
+  playVideo(i);
+
+  lockLayer = document.createElement('div');
+  lockLayer.id = 'video-lock-layer';
+  lockLayer.append(v, lockBtn);
+  document.body.append(lockLayer);
+  lockBtn.hidden = false;
+  lockBtn.textContent = '🔓 Unlock video';
+
+  if (lockLayer.requestFullscreen) {
+    try { await lockLayer.requestFullscreen(); } catch { toast('Fullscreen was blocked. Video is still locked.'); }
+  }
+  toast('Video locked. It will keep playing while you move the camera.');
+}
+
 async function startAR() {
   if (state !== 'ready') return;
   state = 'starting';
@@ -170,9 +221,7 @@ async function startAR() {
       };
       anchor.onTargetLost = () => {
         if (lockedIndex === i) {
-          scene.attach(mesh);
-          mesh.visible = true;
-          playVideo(i);
+          mesh.visible = false;
           return;
         }
         videos[i].pause();
@@ -214,20 +263,7 @@ lockBtn.onclick = () => {
   if (!ar || state !== 'running') return;
 
   if (lockedIndex >= 0) {
-    const i = lockedIndex;
-    lockedIndex = -1;
-    lockBtn.textContent = '🔒 Lock video';
-    const anchor = ar.anchors[i];
-    if (anchor && anchor.visible) {
-      anchor.group.attach(meshes[i]);
-      meshes[i].visible = true;
-      playVideo(i);
-    } else {
-      videos[i].pause();
-      meshes[i].visible = false;
-      lockBtn.hidden = true;
-      toast('Video unlocked. Scan the image to play it again.');
-    }
+    unlockVideo();
     return;
   }
 
@@ -236,10 +272,12 @@ lockBtn.onclick = () => {
     toast('Scan an image before locking the video.');
     return;
   }
-  lockedIndex = active;
-  lockBtn.textContent = '🔓 Unlock video';
-  toast('Video locked. It will stay visible when tracking is lost.');
+  lockVideo(active);
 };
+
+document.addEventListener('fullscreenchange', () => {
+  if (lockedIndex >= 0 && lockLayer && document.fullscreenElement !== lockLayer) unlockVideo({ exitFullscreen: false });
+});
 
 // ---------- cleanup ----------
 function cleanup() {
@@ -255,6 +293,8 @@ function cleanup() {
   if (blobUrl) URL.revokeObjectURL(blobUrl);
   ar = null; videos = []; textures = []; meshes.length = 0; dims = []; videoBox = null; blobUrl = null;
   lockedIndex = -1;
+  if (lockLayer) lockLayer.remove();
+  lockLayer = null;
   soundBtn.hidden = true; lockBtn.hidden = true; playBtn.hidden = true;
   document.querySelectorAll('.mindar-ui-overlay').forEach((n) => n.remove());
   return wasRunning;
