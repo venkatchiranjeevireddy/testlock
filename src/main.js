@@ -142,6 +142,8 @@ async function unlockVideo({ exitFullscreen = true } = {}) {
     lockLayer.remove();
     lockLayer = null;
   }
+  if (!lockBtn.parentElement) document.body.append(lockBtn);
+  lockBtn.hidden = false;
   unlocking = true;
   cleanup();
   state = 'ready';
