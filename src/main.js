@@ -142,12 +142,13 @@ async function unlockVideo({ exitFullscreen = true } = {}) {
     lockLayer.remove();
     lockLayer = null;
   }
-  if (!lockBtn.parentElement) document.body.append(lockBtn);
-  lockBtn.hidden = false;
   unlocking = true;
   cleanup();
   state = 'ready';
+  document.body.append(soundBtn, lockBtn);
   lockBtn.textContent = '🔒 Lock video';
+  lockBtn.hidden = false;
+  soundBtn.hidden = false;
   unlocking = false;
   startAR();
 }
@@ -163,8 +164,9 @@ async function lockVideo(i) {
 
   lockLayer = document.createElement('div');
   lockLayer.id = 'video-lock-layer';
-  lockLayer.append(v, lockBtn);
+  lockLayer.append(v, soundBtn, lockBtn);
   document.body.append(lockLayer);
+  soundBtn.hidden = false;
   lockBtn.hidden = false;
   lockBtn.textContent = '🔓 Unlock video';
 
@@ -256,7 +258,7 @@ soundBtn.onclick = () => {
   soundOn = !soundOn;
   videos.forEach((v) => { v.muted = !soundOn; });
   soundBtn.textContent = soundOn ? '🔊 Sound on' : '🔇 Tap for sound';
-  const active = ar && ar.anchors.findIndex((a) => a.visible);
+  const active = lockedIndex >= 0 ? lockedIndex : ar && ar.anchors.findIndex((a) => a.visible);
   if (active >= 0 && videos[active] && videos[active].paused) videos[active].play().catch(() => {});
 };
 
