@@ -1,0 +1,23 @@
+{
+  "name": "wedding-ar-dev-app",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host --port 5173",
+    "build": "vite build",
+    "preview": "vite preview --host",
+    "test": "node test/merge.test.mjs"
+  },
+  "dependencies": {
+    "@msgpack/msgpack": "^2.8.0",
+    "@supabase/supabase-js": "^2.45.0",
+    "mind-ar": "1.2.5"
+  },
+  "devDependencies": {
+    "vite": "^8.3.4"
+  },
+  "overrides": {
+    "canvas": "npm:@napi-rs/canvas@^0.1.65"
+  }
+}

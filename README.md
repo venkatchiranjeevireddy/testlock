@@ -11,6 +11,35 @@ Nothing here modifies the MindAR.js repository. MindAR is used as the published 
 
 ---
 
+## Product overview
+
+Wedding AR turns a printed wedding photograph, invitation, table card, or sign into an interactive video trigger:
+
+1. A guest opens the Viewer link on a phone.
+2. The guest grants camera permission.
+3. The camera recognizes one of the registered printed images.
+4. The matching wedding video appears directly over the image.
+5. The guest can tap the sound control to hear audio.
+
+The system is designed for client delivery:
+
+* The client receives one public Viewer URL to place on a QR code, invitation, or event sign.
+* The operator uses the private Dev App to add new image/video pairs.
+* New content becomes available after a Viewer reload; no Viewer rebuild or redeployment is needed.
+* Supabase stores the database records and media; Vercel (or another static host) serves the web app.
+
+### Roles
+
+| Role | Access | Responsibility |
+|---|---|---|
+| Guest | Viewer URL only | Allow the camera and show a printed target |
+| Operator/admin | Dev App + Supabase Auth account | Upload and publish image/video pairs |
+| Developer | Repository, hosting, and Supabase project | Initial setup, maintenance, troubleshooting, and releases |
+
+The Viewer does not contain an admin login or upload controls. The Dev App should not be shared with guests.
+
+---
+
 ## How it works (and why it is built this way)
 
 I read MindAR's source (`compiler-base.js`, `controller.js`, `three.js`) before designing this:
@@ -30,6 +59,52 @@ I read MindAR's source (`compiler-base.js`, `controller.js`, `three.js`) before 
 **Viewer:** reads the latest target set (ordered list of pair ids = target order) and the pairs, downloads + validates the `.mind`, and creates one video plane per target. Because files are versioned and immutable and the mapping query is `no-store`, a new upload is picked up on the next page load with no rebuild or redeploy.
 
 The image you print is the exact file you uploaded. The `.mind` file is internal. (For tracking only, an in-memory copy is downscaled to max 1024 px before compiling; the stored original is untouched.)
+
+---
+
+## Architecture
+
+```text
+                    ┌────────────────────────────┐
+                    │        Supabase project     │
+                    │  Auth · Postgres · Storage   │
+                    └──────────────┬─────────────┘
+                                   │
+                 ┌─────────────────┴─────────────────┐
+                 │                                   │
+       ┌─────────▼─────────┐               ┌─────────▼─────────┐
+       │     Dev App       │               │    Viewer App      │
+       │  private operator │               │  public guest URL  │
+       │  sign in/upload   │               │  camera/AR/video   │
+       └─────────┬─────────┘               └─────────┬─────────┘
+                 │                                   │
+                 └───────────────┬───────────────────┘
+                                 │
+                    `wedding-ar` public media bucket
+```
+
+### Frontend technologies
+
+* **Vite** builds each app as a static site.
+* **MindAR.js 1.2.5** compiles image targets and tracks them in the camera.
+* **Three.js** renders each matching video as a plane.
+* **Supabase JS** handles Auth, database reads, RPC calls, and Storage.
+* **Web APIs** provide camera access, video playback, and file validation.
+
+### Supabase objects
+
+`supabase/setup.sql` creates the following:
+
+| Object | Purpose |
+|---|---|
+| `public.admins` | Allow-list of users who may publish |
+| `public.pairs` | One record for each image/video pair |
+| `public.target_sets` | Immutable versions of the combined MindAR target file |
+| `public.is_admin()` | Security-definer admin check |
+| `public.register_pair(...)` | Atomic pair + target-set registration |
+| `storage.objects` in bucket `wedding-ar` | Original images, MP4 files, and `.mind` files |
+
+`pairs` and `target_sets` are publicly readable because guests use the anon key. Writes are not public: database writes go through the admin-only RPC, and Storage insert/update/delete policies require an authenticated admin.
 
 ---
 
@@ -58,6 +133,19 @@ cd dev-app    && cp .env.example .env.local   # then edit: URL + anon key
 cd ../viewer-app && cp .env.example .env.local
 ```
 
+On Windows PowerShell, use:
+```powershell
+Copy-Item .env.example .env.local
+```
+
+The two required variables are:
+```text
+VITE_SUPABASE_URL=https://YOUR-PROJECT-REF.supabase.co
+VITE_SUPABASE_ANON_KEY=YOUR-ANON-PUBLIC-KEY
+```
+
+Use the base project URL, not the REST endpoint. If the dashboard shows a URL ending in `/rest/v1/`, remove that suffix before saving it. The anon key is expected in a browser application; never put the `service_role` key in either app, Git, Vercel, or a client message.
+
 ### 5. Install and run (two separate terminals)
 ```bash
 # Dev App (http://localhost:5173)
@@ -81,6 +169,42 @@ Tip: deploy the Dev App somewhere private, or just run it locally; only admins c
 
 ---
 
+## Recommended Vercel deployment
+
+The Viewer App can be deployed as its own GitHub repository, as in the `vierapp` deployment. If the repository contains only the contents of `viewer-app/`, use these settings:
+
+| Vercel setting | Value |
+|---|---|
+| Framework Preset | Vite |
+| Root Directory | `./` |
+| Build Command | `npm run build` |
+| Output Directory | `dist` |
+| Install Command | `npm install` |
+
+If the full monorepo is imported instead, set **Root Directory** to `viewer-app`.
+
+Add these Vercel environment variables for **Production** (and Preview if preview deployments are needed):
+
+```text
+VITE_SUPABASE_URL=https://YOUR-PROJECT-REF.supabase.co
+VITE_SUPABASE_ANON_KEY=YOUR-ANON-PUBLIC-KEY
+```
+
+Vercel may call the visibility mode **Config**. Choose **Config**, not **Secret**, because `VITE_` variables are intentionally embedded into the public browser bundle. This is safe only for the anon key; Supabase Row Level Security must remain enabled.
+
+After changing environment variables, redeploy without cache. Vite reads these values at build time, so changing a Vercel variable does not change an already-created deployment.
+
+For a production release:
+1. Push the Viewer code to Git.
+2. Confirm the Vercel build finishes with `✓ built`.
+3. Confirm the deployment is marked **Ready**.
+4. Open the HTTPS URL on a real phone.
+5. Test one printed target and its video before sharing the link with guests.
+
+The Viewer requires HTTPS for camera access. Vercel provides HTTPS automatically. Do not test the public app inside Instagram, WhatsApp, or another embedded browser; open it in Chrome or Safari.
+
+---
+
 ## Daily use
 
 * **Add a pair:** open the Dev App, sign in, choose image + MP4, press Upload, wait for the green "Done" banner. That's all. Repeat any time, today or next week.
@@ -90,6 +214,124 @@ Tip: deploy the Dev App somewhere private, or just run it locally; only admins c
 * Print the image reasonably large, matte if possible, good lighting, avoid glare.
 * Use images with rich detail/contrast (photos with texture work; large flat areas or repeating patterns track poorly). Keep each printed image visually distinct from the others.
 * Videos: **H.264 MP4** (what phones and editors produce). Supabase's free plan has a per-file upload limit (50 MB at the time of writing); keep videos short/compressed or raise the limit in your Storage settings if your plan allows.
+
+---
+
+## End-to-end operating procedure
+
+### Before the event
+
+1. Create the Supabase project and run `supabase/setup.sql`.
+2. Create the operator Auth account and add it to `public.admins`.
+3. Deploy the Viewer over HTTPS.
+4. Prepare a test image and a short H.264 MP4.
+5. Upload the test pair from the Dev App.
+6. Test recognition on the actual phone models guests will use.
+7. Print the exact uploaded image without cropping, stretching, or heavy compression.
+8. Generate a QR code pointing to the Viewer URL.
+9. Test the QR code, camera permission, target recognition, video, and sound at the venue.
+10. Keep the Dev App URL private and keep a copy of the Supabase project owner/recovery details with the project owner.
+
+### Adding client content
+
+For every image/video pair:
+
+1. Use a visually detailed image with good contrast.
+2. Export the matching video as H.264 MP4.
+3. Open the Dev App and sign in.
+4. Add an optional internal label.
+5. Select the original image and matching MP4.
+6. Click **Upload** and wait for the green completion message.
+7. Reload the Viewer and test the new image.
+
+The label is for the operator only. It is not shown to guests.
+
+### During the event
+
+* Keep the Viewer URL unchanged so printed QR codes continue to work.
+* If a new pair is uploaded, guests must reload the Viewer page to fetch the latest target set.
+* Keep the original images available for testing and replacement.
+* If mobile data is weak, preload expectations with the client: the Viewer must download the target data and video from the network.
+* If sound is muted, tap the sound control; mobile browsers commonly begin videos muted to satisfy autoplay rules.
+
+### After the event
+
+* Keep the Supabase project and Storage files until the client confirms retention or deletion.
+* Do not delete individual files manually unless the related target-set history is understood.
+* Export or record the Viewer URL, Supabase project reference, deployed Git commit, and operator email in the client handoff.
+* Rotate the operator password if the project was shared with temporary staff.
+
+---
+
+## Data and publishing lifecycle
+
+### First upload
+
+When the first pair is published:
+
+1. The Dev App validates the selected files.
+2. MindAR compiles the image into target data.
+3. `images/<uuid>.<extension>` and `videos/<uuid>.mp4` are uploaded.
+4. The combined target file is stored as `targets/v1-<uuid>.mind`.
+5. `register_pair` creates the pair and target-set records in one transaction.
+6. The Viewer reads version 1 and maps target index 0 to that pair.
+
+### Later uploads
+
+For the next pair, the Dev App downloads the latest `.mind`, appends the new target, and publishes a new immutable version. Existing target order is retained:
+
+```text
+target_sets.pair_ids[1] → MindAR target index 0
+target_sets.pair_ids[2] → MindAR target index 1
+...
+```
+
+The Viewer uses this order rather than database row order, so the correct video is always attached to the correct target.
+
+### Failure and recovery
+
+If validation, compilation, upload, verification, or registration fails:
+
+* The database is not registered with an incomplete pair.
+* Files created by that upload are cleaned up.
+* The Viewer continues using the last valid target set.
+
+If two operators publish simultaneously, the stale publisher receives a version conflict, re-downloads the latest set, merges again, and retries up to five times.
+
+---
+
+## Client handoff checklist
+
+Use this checklist when delivering a project:
+
+- [ ] Supabase project created and billing/limits reviewed
+- [ ] `supabase/setup.sql` executed successfully
+- [ ] Storage bucket `wedding-ar` is public for reads
+- [ ] RLS policies are enabled
+- [ ] Operator Auth account created
+- [ ] Operator added to `public.admins`
+- [ ] Viewer deployed over HTTPS
+- [ ] Production environment variables configured in the hosting dashboard
+- [ ] At least one real image/video pair tested
+- [ ] QR code points to the final Viewer URL
+- [ ] Target printed at the intended physical size
+- [ ] Android Chrome test completed
+- [ ] iPhone Safari test completed
+- [ ] Venue lighting/glare test completed
+- [ ] Client received Viewer URL and basic guest instructions
+- [ ] Client knows that adding content requires the private Dev App
+- [ ] Client knows that changing a Vercel environment variable requires a redeploy
+- [ ] Client knows that a public media URL is not suitable for confidential content
+
+### Guest instructions
+
+Give guests only these instructions:
+
+1. Scan the QR code.
+2. Open the link in Chrome or Safari.
+3. Tap **Start camera** and allow camera access.
+4. Point the camera at the printed wedding image.
+5. Tap the sound button if audio is muted.
 
 ---
 

@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+  <meta name="theme-color" content="#000000" />
+  <title>Wedding AR</title>
+  <link rel="stylesheet" href="/src/style.css" />
+</head>
+<body>
+  <div id="ar"></div>
+  <div id="panel" class="panel">
+    <div id="spinner" class="spinner" hidden></div>
+    <p id="msg">Loading…</p>
+    <button id="action" hidden></button>
+  </div>
+  <button id="sound" class="float" hidden>🔇 Tap for sound</button>
+  <button id="lock" class="float lock" hidden>🔒 Lock video</button>
+  <button id="play" class="float center" hidden>▶ Tap to play</button>
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>

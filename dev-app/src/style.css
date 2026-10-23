@@ -1,0 +1,25 @@
+:root { --bg:#faf7f2; --card:#fff; --ink:#2a2420; --muted:#7a6f66; --accent:#9c4f3a; --ok:#2e7d4f; --err:#b3261e; --line:#e6ddd2; }
+* { box-sizing: border-box; }
+body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; background:var(--bg); color:var(--ink); }
+main { max-width: 640px; margin: 0 auto; padding: 24px 16px 64px; }
+h1 { font-size: 22px; margin: 0 0 4px; }
+h2 { font-size: 16px; margin: 0 0 12px; }
+.muted { color: var(--muted); font-size: 14px; }
+.card { background: var(--card); border:1px solid var(--line); border-radius: 12px; padding: 16px; margin-top: 16px; }
+label { display:block; font-size: 13px; color: var(--muted); margin: 12px 0 4px; }
+input[type=text], input[type=email], input[type=password], input[type=file] { width:100%; padding: 10px; border:1px solid var(--line); border-radius: 8px; font-size: 15px; background:#fff; }
+button { margin-top: 16px; padding: 12px 18px; border:0; border-radius: 8px; background: var(--accent); color:#fff; font-size: 15px; cursor: pointer; }
+button:disabled { opacity: .5; cursor: not-allowed; }
+button.link { background:none; color: var(--muted); padding:0; margin:0; font-size: 13px; text-decoration: underline; }
+.steps { list-style:none; padding:0; margin: 16px 0 0; font-size: 14px; }
+.steps li { padding: 4px 0; color: var(--muted); }
+.steps li.run { color: var(--ink); } .steps li.run::before { content:'⏳ '; }
+.steps li.done { color: var(--ok); } .steps li.done::before { content:'✔ '; }
+.steps li.fail { color: var(--err); } .steps li.fail::before { content:'✖ '; }
+.banner { padding: 12px; border-radius: 8px; margin-top: 16px; font-size: 14px; white-space: pre-wrap; }
+.banner.ok { background:#e7f4ec; color:var(--ok); } .banner.err { background:#fdeceb; color:var(--err); }
+progress { width:100%; height: 10px; margin-top: 12px; }
+.pair { display:flex; gap:12px; align-items:center; padding:10px 0; border-top:1px solid var(--line); }
+.pair:first-child { border-top:0; }
+.pair img { width:64px; height:64px; object-fit:cover; border-radius:6px; background:#eee; }
+.pair a { color: var(--accent); font-size: 13px; }
