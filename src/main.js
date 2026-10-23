@@ -19,6 +19,7 @@ let videoBox = null;
 let soundOn = false;
 let lockedIndex = -1;
 let lockLayer = null;
+let unlocking = false;
 let toastTimer = null;
 
 // ---------- UI helpers ----------
@@ -133,8 +134,6 @@ async function unlockVideo({ exitFullscreen = true } = {}) {
   if (lockedIndex < 0) return;
   const i = lockedIndex;
   lockedIndex = -1;
-  const v = videos[i];
-  const anchor = ar && ar.anchors[i];
 
   if (exitFullscreen && document.fullscreenElement && document.exitFullscreen) {
     try { await document.exitFullscreen(); } catch { /* the overlay is restored below */ }
@@ -143,27 +142,21 @@ async function unlockVideo({ exitFullscreen = true } = {}) {
     lockLayer.remove();
     lockLayer = null;
   }
-  if (videoBox && v && v.parentElement !== videoBox) videoBox.append(v);
+  unlocking = true;
+  cleanup();
+  state = 'ready';
   lockBtn.textContent = '🔒 Lock video';
-  if (anchor && anchor.visible) {
-    anchor.group.attach(meshes[i]);
-    meshes[i].visible = true;
-    lockBtn.hidden = false;
-    playVideo(i);
-  } else {
-    v.pause();
-    meshes[i].visible = false;
-    lockBtn.hidden = true;
-    toast('Video unlocked. Scan the image to play it again.');
-  }
+  unlocking = false;
+  startAR();
 }
 
 async function lockVideo(i) {
   if (lockedIndex >= 0 || !videos[i]) return;
   lockedIndex = i;
   const v = videos[i];
-  const mesh = meshes[i];
-  mesh.visible = false;
+  v.muted = false;
+  soundOn = true;
+  soundBtn.textContent = '🔊 Sound on';
   playVideo(i);
 
   lockLayer = document.createElement('div');
@@ -173,10 +166,16 @@ async function lockVideo(i) {
   lockBtn.hidden = false;
   lockBtn.textContent = '🔓 Unlock video';
 
+  if (ar) {
+    ar.renderer.setAnimationLoop(null);
+    if (ar.video && ar.video.srcObject) {
+      ar.video.srcObject.getTracks().forEach((track) => track.stop());
+    }
+  }
   if (lockLayer.requestFullscreen) {
     try { await lockLayer.requestFullscreen(); } catch { toast('Fullscreen was blocked. Video is still locked.'); }
   }
-  toast('Video locked. It will keep playing while you move the camera.');
+  toast('Video locked with sound. Camera tracking is off.');
 }
 
 async function startAR() {
@@ -276,7 +275,9 @@ lockBtn.onclick = () => {
 };
 
 document.addEventListener('fullscreenchange', () => {
-  if (lockedIndex >= 0 && lockLayer && document.fullscreenElement !== lockLayer) unlockVideo({ exitFullscreen: false });
+  if (!unlocking && lockedIndex >= 0 && lockLayer && document.fullscreenElement !== lockLayer) {
+    unlockVideo({ exitFullscreen: false });
+  }
 });
 
 // ---------- cleanup ----------
