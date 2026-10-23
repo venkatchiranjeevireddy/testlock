@@ -242,7 +242,7 @@ async function startAR() {
     state = 'running';
     hidePanel();
     soundBtn.hidden = false;
-    lockBtn.hidden = true;
+    lockBtn.hidden = false;
   } catch (e) {
     cleanup();
     fail(e instanceof ViewerError ? e.message : `Could not start AR: ${e && e.message ? e.message : 'unknown error'}.` + inAppHint);
